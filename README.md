@@ -48,11 +48,36 @@ For a minimal cloud deployment (e.g., AWS ECS + RDS):
 A simple Terraform snippet might look like:
 
 ```hcl
-resource "aws_ecs_service" "backend" {
-  name            = "uptime-backend"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.backend.arn
-  desired_count   = 1
-  launch_type     = "FARGATE"
+resource "aws_ecs_task_definition" "backend" {
+  family                   = "uptime-backend"
+  requires_compatibilities = ["FARGATE"]
+
+  cpu    = 256
+  memory = 512
+
+  network_mode = "awsvpc"
+
+  execution_role_arn = aws_iam_role.ecs_execution_role.arn
+
+  container_definitions = jsonencode([
+    {
+      name  = "backend"
+      image = "${aws_ecr_repository.backend.repository_url}:latest"
+
+      portMappings = [
+        {
+          containerPort = 8000
+          hostPort      = 8000
+        }
+      ]
+
+      environment = [
+        {
+          name  = "DATABASE_URL"
+          value = "postgresql+asyncpg://postgres:password@${aws_db_instance.postgres.address}:5432/uptime"
+        }
+      ]
+    }
+  ])
 }
 ```
